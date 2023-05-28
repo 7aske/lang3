@@ -110,7 +110,9 @@ impl<'a> Lexer<'a> {
             return Some(self.parse_char());
         }
 
-        // TODO: parse number
+        if self.is_start_of_number(c) {
+            return Some(self.parse_number()?);
+        }
 
         // TODO parse keyword
 
@@ -137,7 +139,70 @@ impl<'a> Lexer<'a> {
 
             self._next();
         }
-        {}}
+    }
+
+    fn is_start_of_number(&self, c: char) -> bool {
+        return c.is_digit(10);
+    }
+
+    fn is_number(&self, c: Option<char>) {
+
+    }
+
+    fn parse_number(&mut self) -> Option<Result<Token, LexerError>> {
+        let start_line = self.iter.line();
+        let start_char = self.iter.char();
+
+        let mut is_float = false;
+
+        let mut buffer = String::new();
+
+        if let Some(c) = self.iter.peek() {
+            if c == '-' || c == '+' {
+                buffer.push(self._next().unwrap());
+            }
+        }
+
+        while let Some(c) = self._next() {
+            match c {
+                '0'..='9' => {
+                    buffer.push(c);
+                },
+                '_' => {continue;},
+                '.' => {
+                    if is_float {
+                        return Some(Err(LexerError::from_location("Invalid float".to_string(),
+                                                                self.get_location())));
+                    }
+
+                    is_float = true;
+                    buffer.push(c);
+                },
+                _ => {
+                    return Some(Err(LexerError::from_location("Invalid number literal".to_string(),
+                                                             self.get_location())));
+                }
+            };
+        };
+
+        return if is_float {
+            Some(Ok(Token {
+                kind: TokenKind::Float,
+                lexeme: buffer,
+                line: start_line,
+                start_char,
+                end_char: self.iter.char(),
+            }))
+        } else {
+            Some(Ok(Token {
+                kind: TokenKind::Integer,
+                lexeme: buffer,
+                line: start_line,
+                start_char,
+                end_char: self.iter.char(),
+            }))
+        }
+    }
 
     fn is_start_of_char(&self, c: char) -> bool {
         return c == '\'';
@@ -290,152 +355,14 @@ impl<'a> Lexer<'a> {
     }
 
     fn parse_operator(&mut self, c: char) -> Option<TokenKind> {
-        self._next(); // skip c
-        if c == '!' {
-            return if self._peek() == Option::from('=') {
-                self._next();
-                Some(TokenKind::BangEqual)
-            } else {
-                Some(TokenKind::Bang)
-            };
-        }
+        self._next();
+        let peek = self._peek();
 
-        if c == '%' { return Some(TokenKind::Percent); }
-        if c == '&' {
-            return if self._peek() == Option::from('&') {
-                self._next();
-                Some(TokenKind::AmpersandAmpersand)
-            } else {
-                Some(TokenKind::Ampersand)
-            };
-        }
-
-        if c == '(' {
-            return Some(TokenKind::LeftParenthesis);
-        }
-        if c == ')' {
-            return Some(TokenKind::RightParenthesis);
-        }
-        if c == '*' {
-            return if self._peek() == Option::from('=') {
-                self._next();
-                Some(TokenKind::StarEqual)
-            } else if self._peek() == Option::from('*') {
-                self._next();
-                Some(TokenKind::StarStar)
-            } else {
-                Some(TokenKind::Star)
-            };
-        }
-        if c == '+' {
-            return if self._peek() == Option::from('+') {
-                self._next();
-                Some(TokenKind::PlusPlus)
-            } else if self._peek() == Option::from('=') {
-                self._next();
-                Some(TokenKind::PlusEqual)
-            } else {
-                Some(TokenKind::Plus)
-            };
-        }
-        if c == ',' {
-            return Some(TokenKind::Comma);
-        }
-        if c == '-' {
-            return if self._peek() == Option::from('-') {
-                self._next();
-                Some(TokenKind::MinusMinus)
-            } else if self._peek() == Option::from('=') {
-                self._next();
-                Some(TokenKind::MinusEqual)
-            } else if self._peek() == Option::from('>') {
-                self._next();
-                Some(TokenKind::FatArrow)
-            } else {
-                Some(TokenKind::Minus)
-            };
-        }
-        if c == '.' {
-            return if self._peek() == Option::from('.') {
-                self._next();
-                Some(TokenKind::DotDot)
-            } else {
-                Some(TokenKind::Dot)
-            };
-        }
-        if c == '/' {
-            return if self._peek() == Option::from('=') {
-                self._next();
-                Some(TokenKind::SlashEqual)
-            } else {
-                Some(TokenKind::Slash)
-            };
-        }
-        if c == ':' {
-            return Some(TokenKind::Colon);
-        }
-        if c == ';' {
-            return Some(TokenKind::Semicolon);
-        }
-        if c == '<' {
-            return if self._peek() == Option::from('=') {
-                self._next();
-                Some(TokenKind::LessEqual)
-            } else {
-                Some(TokenKind::Less)
-            };
-        }
-        if c == '=' {
-            return if self._peek() == Option::from('=') {
-                self._next();
-                Some(TokenKind::EqualEqual)
-            } else if self._peek() == Option::from('>') {
-                self._next();
-                Some(TokenKind::FatArrow)
-            } else {
-                Some(TokenKind::Equal)
-            };
-        }
-        if c == '>' {
-            return if self._peek() == Option::from('=') {
-                self._next();
-                Some(TokenKind::GreaterEqual)
-            } else {
-                Some(TokenKind::Greater)
-            };
-        }
-
-        if c == '?' {
-            return if self._peek() == Option::from('?') {
-                self._next();
-                Some(TokenKind::QuestionmarkQuestionmark)
-            } else {
-                Some(TokenKind::Questionmark)
-            };
-        }
-
-        if c == '[' {
-            return Some(TokenKind::LeftBracket);
-        }
-        if c == ']' {
-            return Some(TokenKind::RightBracket);
-        }
-        if c == '{' {
-            return Some(TokenKind::LeftBrace);
-        }
-        if c == '|' {
-            return if self._peek() == Option::from('|') {
-                self._next();
-                Some(TokenKind::PipePipe)
-            } else {
-                Some(TokenKind::Pipe)
-            };
-        }
-        if c == '}' {
-            return Some(TokenKind::RightBrace);
-        }
-
-        return None;
+        return TokenKind::parse_operator(c, peek)
+            .and_then(|t| {
+                self._skip(t.to_str().len() - 1); // we skipped one already
+                Some(t)
+            });
     }
 
     #[inline(always)]
@@ -585,5 +512,19 @@ mod lexer_tests {
         // then
         assert_eq!(token.kind, super::TokenKind::Char);
         assert_eq!(token.lexeme, "a");
+    }
+
+    #[test]
+    fn test_parse_integer() {
+        // given
+        let code = String::from("123");
+
+        // when
+        let mut lexer = super::Lexer::new(&code);
+        let token = lexer.next_token().unwrap().unwrap();
+
+        // then
+        assert_eq!(token.kind, super::TokenKind::Integer);
+        assert_eq!(token.lexeme, "123");
     }
 }
