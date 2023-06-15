@@ -114,7 +114,9 @@ impl<'a> Lexer<'a> {
             return Some(self.parse_number()?);
         }
 
-        // TODO parse keyword
+        if self.is_start_of_identifier(c) {
+            return Some(Ok(self.parse_identifier()));
+        }
 
         let operator = self.parse_operator(c);
         if operator.is_none() {
@@ -141,12 +143,37 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    fn is_start_of_number(&self, c: char) -> bool {
-        return c.is_digit(10);
+    fn is_start_of_identifier(&self, c: char) -> bool {
+        return c.is_alphabetic() || c == '_' || c == '$';
     }
 
-    fn is_number(&self, c: Option<char>) {
+    fn parse_identifier(&mut self) -> Token {
+        let start_line = self.iter.line();
+        let start_char = self.iter.char();
 
+        let mut buffer = String::new();
+
+        while let Some(c) = self.iter.peek() {
+            if !self.is_start_of_identifier(c) && !c.is_digit(10) {
+                break;
+            }
+
+            buffer.push(self._next().unwrap());
+        }
+
+        let end_char = self.iter.char();
+
+        return Token {
+            kind: TokenKind::Identifier,
+            lexeme: buffer,
+            line: start_line,
+            start_char,
+            end_char,
+        };
+    }
+
+    fn is_start_of_number(&self, c: char) -> bool {
+        return c.is_digit(10);
     }
 
     fn parse_number(&mut self) -> Option<Result<Token, LexerError>> {
@@ -185,23 +212,19 @@ impl<'a> Lexer<'a> {
             };
         };
 
-        return if is_float {
-            Some(Ok(Token {
-                kind: TokenKind::Float,
-                lexeme: buffer,
-                line: start_line,
-                start_char,
-                end_char: self.iter.char(),
-            }))
+        let kind = if is_float {
+            TokenKind::Float
         } else {
-            Some(Ok(Token {
-                kind: TokenKind::Integer,
-                lexeme: buffer,
-                line: start_line,
-                start_char,
-                end_char: self.iter.char(),
-            }))
-        }
+            TokenKind::Integer
+        };
+
+        return Some(Ok(Token {
+            kind,
+            lexeme: buffer,
+            line: start_line,
+            start_char,
+            end_char: self.iter.char(),
+        }))
     }
 
     fn is_start_of_char(&self, c: char) -> bool {
@@ -401,6 +424,8 @@ impl<'a> Lexer<'a> {
 
 #[cfg(test)]
 mod lexer_tests {
+    use std::process::id;
+
     #[test]
     fn test_string_literal() {
         // given
@@ -526,5 +551,29 @@ mod lexer_tests {
         // then
         assert_eq!(token.kind, super::TokenKind::Integer);
         assert_eq!(token.lexeme, "123");
+    }
+
+    #[test]
+    fn test_parse_identifier() {
+        // given
+        let identifiers = [
+            "test",
+            "$_test",
+            "$123test",
+            "test123",
+        ];
+
+        for ident in identifiers {
+            let code = String::from(ident);
+
+            // when
+            let mut lexer = super::Lexer::new(&code);
+            let token = lexer.next_token().unwrap().unwrap();
+
+            // then
+            assert_eq!(token.kind, super::TokenKind::Identifier);
+            assert_eq!(token.lexeme, ident);
+        }
+
     }
 }
